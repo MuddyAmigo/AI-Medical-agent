@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
-import { Circle, Phone, PhoneOff } from "lucide-react";
+import { Circle, Phone, PhoneOff, Loader2 } from "lucide-react";
 import Vapi from "@vapi-ai/web";
 import { doctorAgent } from "../../_component/DoctorAgentCard";
 import { toast } from "sonner";
@@ -28,6 +28,7 @@ export default function MedicalVoiceAgent() {
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [generatingReport, setGeneratingReport] = useState(false); // New state for report generation
   const router = useRouter();
 
   const [vapiInstance, setVapiInstance] = useState<any>(null);
@@ -141,15 +142,25 @@ export default function MedicalVoiceAgent() {
     setVapiInstance(null);
     setCallStatus("idle");
 
+    // Start generating report
+    setGeneratingReport(true);
+    
     try {
       await GenerateReport();
       toast.success("Report generated successfully");
+      
+      // Clear localStorage after successful report generation
+      localStorage.removeItem('callMessages');
+      
+      // Redirect to dashboard after a short delay
+      setTimeout(() => {
+        router.replace("/dashboard");
+      }, 1500);
     } catch (error) {
       console.error("Error generating report:", error);
       setError("Failed to generate report. Please try again.");
+      setGeneratingReport(false);
     }
-
-    router.replace("/dashboard");
   };
 
   // ---------- Report ----------
@@ -191,6 +202,27 @@ export default function MedicalVoiceAgent() {
         <div className="text-red-600 bg-red-100 p-6 rounded-lg shadow-md">
           <h2 className="text-xl font-bold mb-2">An Error Occurred</h2>
           <p>{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show report generation loader
+  if (generatingReport) {
+    return (
+      <div className="flex flex-col h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+        <div className="flex-grow flex flex-col max-w-4xl mx-auto w-full bg-white rounded-3xl shadow-lg overflow-hidden">
+          <div className="flex-1 flex flex-col items-center justify-center p-8">
+            <Loader2 className="w-16 h-16 animate-spin text-blue-500 mb-6" />
+            <h2 className="text-2xl font-semibold text-gray-800 mb-3">Generating Medical Report</h2>
+            <p className="text-gray-600 text-center max-w-md mb-4">
+              Please wait while we analyze your consultation and generate a detailed medical report...
+            </p>
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              Processing conversation transcript
+            </div>
+          </div>
         </div>
       </div>
     );
