@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
         
         // Smart fallback: suggest doctors based on symptoms keywords
         const symptomKeywords = notes.toLowerCase();
-        let suggestedDoctors = [];
+        let suggestedDoctors: typeof AIDoctorAgents = [];
         
         // Simple keyword matching for better suggestions
         if (symptomKeywords.includes('throat') || symptomKeywords.includes('cough') || symptomKeywords.includes('voice')) {
