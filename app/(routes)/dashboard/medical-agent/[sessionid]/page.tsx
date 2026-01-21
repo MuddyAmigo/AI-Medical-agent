@@ -170,14 +170,6 @@ export default function MedicalVoiceAgent() {
         console.log("🎤 User speech ended");
       });
 
-      vapi.on("function-call", (functionCall: any) => {
-        console.log("🔧 Function call:", functionCall);
-      });
-
-      vapi.on("hang", () => {
-        console.log("📞 Call hung up");
-      });
-
       vapi.on("volume-level", (level: number) => {
         // console.log("🔊 Volume level:", level);
       });
