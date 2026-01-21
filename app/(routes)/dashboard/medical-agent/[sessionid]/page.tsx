@@ -28,7 +28,7 @@ export default function MedicalVoiceAgent() {
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [generatingReport, setGeneratingReport] = useState(false); // New state for report generation
+  const [generatingReport, setGeneratingReport] = useState(false);
   const router = useRouter();
 
   const [vapiInstance, setVapiInstance] = useState<any>(null);
@@ -39,6 +39,15 @@ export default function MedicalVoiceAgent() {
   const [callDuration, setCallDuration] = useState(0);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debug environment variables on component mount
+  useEffect(() => {
+    console.log("🔧 Environment Variables Check:");
+    console.log("VAPI_API_KEY exists:", !!process.env.NEXT_PUBLIC_VAPI_API_KEY);
+    console.log("VAPI_API_KEY length:", process.env.NEXT_PUBLIC_VAPI_API_KEY?.length || 0);
+    console.log("VAPI_VOICE_ASSISTANT_ID:", process.env.NEXT_PUBLIC_VAPI_VOICE_ASSISTANT_ID);
+    console.log("VAPI_VOICE_ASSISTANT_ID exists:", !!process.env.NEXT_PUBLIC_VAPI_VOICE_ASSISTANT_ID);
+  }, []);
 
   // ---------- Fetch Session ----------
   useEffect(() => {
@@ -80,14 +89,21 @@ export default function MedicalVoiceAgent() {
 
   // ---------- Handlers ----------
   const handleCallStart = useCallback(() => {
+    console.log("✅ Call started successfully");
     setCallStatus("active");
   }, []);
 
-  const handleCallEnd = useCallback(() => {
+  const handleCallEnd = useCallback((callEndData?: any) => {
+    console.log("📞 Call ended:", callEndData);
+    if (callEndData) {
+      console.log("Call end reason:", callEndData.reason);
+      console.log("Call end data:", JSON.stringify(callEndData, null, 2));
+    }
     endCall(true);
   }, []);
 
   const handleMessage = useCallback((message: any) => {
+    console.log("💬 Message received:", message);
     if (message.type === "transcript" && message.transcript) {
       setMessages((prevMessages) => {
         const newMessages = [...prevMessages];
@@ -111,18 +127,69 @@ export default function MedicalVoiceAgent() {
 
   // ---------- Start Call ----------
   const startCall = () => {
+    console.log("🚀 Starting call...");
+    console.log("VAPI_API_KEY exists:", !!process.env.NEXT_PUBLIC_VAPI_API_KEY);
+    console.log("VAPI_VOICE_ASSISTANT_ID:", process.env.NEXT_PUBLIC_VAPI_VOICE_ASSISTANT_ID);
+    
     setCallStatus("connecting");
     setMessages([]);
     setCallDuration(0);
 
-    const vapi = new Vapi(process.env.NEXT_PUBLIC_VAPI_API_KEY || "");
-    setVapiInstance(vapi);
+    try {
+      const vapi = new Vapi(process.env.NEXT_PUBLIC_VAPI_API_KEY || "");
+      setVapiInstance(vapi);
 
-    vapi.start(process.env.NEXT_PUBLIC_VAPI_VOICE_ASSISTANT_ID);
+      // Add comprehensive error handling
+      vapi.on("error", (error: any) => {
+        console.error("❌ Vapi Error:", error);
+        
+        // More specific error handling
+        if (error.error?.type === "ejected") {
+          console.error("🚫 Call was ejected - Assistant terminated the call");
+          console.error("Ejection reason:", error.error.msg);
+          alert(`Call ended by assistant: ${error.error.msg}\n\nThis usually means:\n1. Assistant configuration issue\n2. No credits/quota exceeded\n3. Assistant model error\n\nCheck your Vapi dashboard for details.`);
+        } else if (error.errorMsg?.includes("unauthorized") || error.errorMsg?.includes("Invalid")) {
+          alert(`Authentication Error: ${error.errorMsg}\n\nPlease check your Vapi API key.`);
+        } else {
+          alert(`Vapi Error: ${error.errorMsg || JSON.stringify(error)}`);
+        }
+        
+        setCallStatus("idle");
+      });
 
-    vapi.on("call-start", handleCallStart);
-    vapi.on("call-end", handleCallEnd);
-    vapi.on("message", handleMessage);
+      vapi.on("call-start", handleCallStart);
+      vapi.on("call-end", handleCallEnd);
+      vapi.on("message", handleMessage);
+
+      // Add more event listeners for debugging
+      vapi.on("speech-start", () => {
+        console.log("🎤 User speech started");
+      });
+
+      vapi.on("speech-end", () => {
+        console.log("🎤 User speech ended");
+      });
+
+      vapi.on("function-call", (functionCall: any) => {
+        console.log("🔧 Function call:", functionCall);
+      });
+
+      vapi.on("hang", () => {
+        console.log("📞 Call hung up");
+      });
+
+      vapi.on("volume-level", (level: number) => {
+        // console.log("🔊 Volume level:", level);
+      });
+
+      console.log("📞 Starting Vapi call with ID:", process.env.NEXT_PUBLIC_VAPI_VOICE_ASSISTANT_ID);
+      vapi.start(process.env.NEXT_PUBLIC_VAPI_VOICE_ASSISTANT_ID);
+
+    } catch (error) {
+      console.error("❌ Error initializing Vapi:", error);
+      setCallStatus("idle");
+      alert(`Failed to start call: ${error}`);
+    }
   };
 
   // ---------- End Call ----------
