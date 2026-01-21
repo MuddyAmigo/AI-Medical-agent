@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AIDoctorAgents } from '@/shared/list';
-import { openai } from '@/config/OpenAiModel';
+import { groqClient } from '@/config/OpenAiModel';
 
 export async function POST(req: NextRequest) {
     const { notes } = await req.json();
@@ -14,33 +14,54 @@ export async function POST(req: NextRequest) {
         console.log('Received notes:', notes);
         console.log('Available doctors:', AIDoctorAgents.length);
         
-        const completion = await openai.chat.completions.create({
-            model: "openai/gpt-oss-20b:free",
-            messages: [
-                {
-                    role: 'system',
-                    content: `You are a medical AI assistant. Here is the list of available doctors: ${JSON.stringify(AIDoctorAgents)}. 
-                    Based on user symptoms, suggest the most relevant doctors from this list. 
-                    Return ONLY a JSON object with this exact structure:
+        let completion;
+        try {
+            // Use Groq API (free tier with good limits)
+            completion = await groqClient.chat.completions.create({
+                model: "llama-3.1-8b-instant", // Updated free model on Groq
+                messages: [
                     {
-                      "doctors": [
+                        role: 'system',
+                        content: `You are a medical AI assistant. Here is the list of available doctors: ${JSON.stringify(AIDoctorAgents)}. 
+                        Based on user symptoms, suggest the most relevant doctors from this list. 
+                        Return ONLY a JSON object with this exact structure:
                         {
-                          "id": number,
-                          "name": "string",
-                          "specialty": "string", 
-                          "description": "string",
-                          "image": "string"
+                          "doctors": [
+                            {
+                              "id": number,
+                              "name": "string",
+                              "specialty": "string", 
+                              "description": "string",
+                              "image": "string"
+                            }
+                          ]
                         }
-                      ]
+                        Do not include any markdown formatting or code blocks.`
+                    },
+                    { 
+                        role: "user", 
+                        content: `User symptoms: ${notes}. Please suggest 2-4 most relevant doctors from the available list. Return only JSON format without any markdown.` 
                     }
-                    Do not include any markdown formatting or code blocks.`
-                },
-                { 
-                    role: "user", 
-                    content: `User symptoms: ${notes}. Please suggest 2-4 most relevant doctors from the available list. Return only JSON format without any markdown.` 
-                }
-            ],
-        });
+                ]
+            });
+        } catch (apiError: any) {
+            console.error('Groq API Error:', {
+                status: apiError?.status,
+                message: apiError?.message,
+                code: apiError?.code
+            });
+            
+            // If Groq fails, throw error for fallback logic
+            if (apiError?.status === 402) {
+                throw new Error('Groq API payment required. Using smart local matching instead.');
+            } else if (apiError?.status === 401) {
+                throw new Error('Invalid Groq API key. Please check your API key.');
+            } else if (apiError?.status === 429) {
+                throw new Error('Groq API rate limit exceeded. Please try again later.');
+            } else {
+                throw new Error(`Groq API Error: ${apiError?.message || 'Unknown error'}`);
+            }
+        }
         
         const rawResponse = completion.choices[0]?.message?.content;
         console.log('Raw OpenAI response:', rawResponse);
@@ -124,8 +145,43 @@ export async function POST(req: NextRequest) {
             name: error instanceof Error ? error.name : undefined
         });
         
-        // Return a fallback response with some default doctors
-        const fallbackDoctors = AIDoctorAgents.slice(0, 2).map(doctor => ({
+        // Get detailed error message
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        
+        // Smart fallback: suggest doctors based on symptoms keywords
+        const symptomKeywords = notes.toLowerCase();
+        let suggestedDoctors = [];
+        
+        // Simple keyword matching for better suggestions
+        if (symptomKeywords.includes('throat') || symptomKeywords.includes('cough') || symptomKeywords.includes('voice')) {
+            suggestedDoctors = AIDoctorAgents.filter(doctor => 
+                doctor.specialist.toLowerCase().includes('ent') || 
+                doctor.specialist.toLowerCase().includes('general')
+            ).slice(0, 3);
+        } else if (symptomKeywords.includes('heart') || symptomKeywords.includes('chest') || symptomKeywords.includes('cardiac')) {
+            suggestedDoctors = AIDoctorAgents.filter(doctor => 
+                doctor.specialist.toLowerCase().includes('cardiologist') || 
+                doctor.specialist.toLowerCase().includes('general')
+            ).slice(0, 3);
+        } else if (symptomKeywords.includes('skin') || symptomKeywords.includes('rash') || symptomKeywords.includes('allergy')) {
+            suggestedDoctors = AIDoctorAgents.filter(doctor => 
+                doctor.specialist.toLowerCase().includes('dermatologist') || 
+                doctor.specialist.toLowerCase().includes('general')
+            ).slice(0, 3);
+        } else if (symptomKeywords.includes('eye') || symptomKeywords.includes('vision') || symptomKeywords.includes('sight')) {
+            suggestedDoctors = AIDoctorAgents.filter(doctor => 
+                doctor.specialist.toLowerCase().includes('ophthalmologist') || 
+                doctor.specialist.toLowerCase().includes('general')
+            ).slice(0, 3);
+        }
+        
+        // If no specific match found, use first available doctors
+        if (suggestedDoctors.length === 0) {
+            suggestedDoctors = AIDoctorAgents.slice(0, 3);
+        }
+        
+        // Format the response
+        const fallbackDoctors = suggestedDoctors.map(doctor => ({
             id: doctor.id,
             name: doctor.specialist,
             specialty: doctor.specialist,
@@ -136,7 +192,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ 
             doctors: fallbackDoctors,
             fallback: true,
-            error: "AI service temporarily unavailable, showing default recommendations"
+            error: errorMessage,
+            errorType: 'API_ERROR'
         });
     }
 }
