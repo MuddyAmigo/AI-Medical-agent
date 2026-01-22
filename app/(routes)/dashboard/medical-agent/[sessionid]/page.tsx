@@ -49,6 +49,9 @@ export default function MedicalVoiceAgent() {
     console.log("VAPI_FEMALE_VOICE_ID:", process.env.NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID);
     console.log("Male Voice ID exists:", !!process.env.NEXT_PUBLIC_VAPI_MALE_VOICE_ID);
     console.log("Female Voice ID exists:", !!process.env.NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID);
+    console.log("Male Voice ID length:", process.env.NEXT_PUBLIC_VAPI_MALE_VOICE_ID?.length || 0);
+    console.log("Female Voice ID length:", process.env.NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID?.length || 0);
+    console.log("Environment:", process.env.NODE_ENV);
   }, []);
 
   // ---------- Fetch Session ----------
@@ -146,19 +149,30 @@ export default function MedicalVoiceAgent() {
     console.log("  Male Voice ID:", maleVoiceId);
     console.log("  Female Voice ID:", femaleVoiceId);
     
-    const voiceAssistantId = 
-      doctorGender === "female" 
-        ? femaleVoiceId 
-        : maleVoiceId;
+    // Select voice ID with fallback logic
+    let voiceAssistantId;
+    if (doctorGender === "female" && femaleVoiceId) {
+      voiceAssistantId = femaleVoiceId;
+    } else if (maleVoiceId) {
+      voiceAssistantId = maleVoiceId;
+    } else {
+      // Ultimate fallback - use a default ID if environment variables are missing
+      voiceAssistantId = "d9986723-925a-4b2b-9d08-fe2c6907a417"; // Male voice as default
+    }
     
     console.log("🔍 Gender Detection:");
     console.log("  Raw Gender:", sessionDetail?.selectedDoctor?.gender);
     console.log("  Lowercase Gender:", doctorGender);
     console.log("  Is Female?:", doctorGender === "female");
     console.log("  Selected Voice Assistant ID:", voiceAssistantId);
+    console.log("  Voice ID Length:", voiceAssistantId?.length);
+    console.log("  Voice ID Format Check:", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(voiceAssistantId || ""));
     
-    if (!voiceAssistantId) {
-      alert("Voice Assistant ID not found. Please check your environment variables.");
+    // Validate that we have a proper UUID
+    if (!voiceAssistantId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(voiceAssistantId)) {
+      const errorMsg = `Invalid Voice Assistant ID: ${voiceAssistantId}. Please check your environment variables in Vercel dashboard.`;
+      console.error(errorMsg);
+      alert(errorMsg);
       return;
     }
     
