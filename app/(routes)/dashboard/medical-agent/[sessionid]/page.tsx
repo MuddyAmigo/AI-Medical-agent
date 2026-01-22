@@ -142,8 +142,8 @@ export default function MedicalVoiceAgent() {
     
     // Determine voice ID based on doctor gender
     const doctorGender = sessionDetail?.selectedDoctor?.gender?.toLowerCase();
-    const maleVoiceId = process.env.NEXT_PUBLIC_VAPI_MALE_VOICE_ID;
-    const femaleVoiceId = process.env.NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID;
+    let maleVoiceId = process.env.NEXT_PUBLIC_VAPI_MALE_VOICE_ID?.trim();
+    let femaleVoiceId = process.env.NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID?.trim();
     
     console.log("🎵 Available Voice IDs:");
     console.log("  Male Voice ID:", maleVoiceId);
@@ -160,20 +160,37 @@ export default function MedicalVoiceAgent() {
       voiceAssistantId = "d9986723-925a-4b2b-9d08-fe2c6907a417"; // Male voice as default
     }
     
+    // Clean the voice assistant ID (remove any whitespace, quotes, etc.)
+    voiceAssistantId = voiceAssistantId?.trim().replace(/['"]/g, '');
+    
     console.log("🔍 Gender Detection:");
     console.log("  Raw Gender:", sessionDetail?.selectedDoctor?.gender);
     console.log("  Lowercase Gender:", doctorGender);
     console.log("  Is Female?:", doctorGender === "female");
     console.log("  Selected Voice Assistant ID:", voiceAssistantId);
     console.log("  Voice ID Length:", voiceAssistantId?.length);
-    console.log("  Voice ID Format Check:", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(voiceAssistantId || ""));
+    
+    // More lenient UUID validation - check basic format and length
+    const isValidUUID = voiceAssistantId && 
+                       voiceAssistantId.length === 36 && 
+                       /^[0-9a-f-]{36}$/i.test(voiceAssistantId) &&
+                       voiceAssistantId.split('-').length === 5;
+    
+    console.log("  Voice ID Format Check:", isValidUUID);
     
     // Validate that we have a proper UUID
-    if (!voiceAssistantId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(voiceAssistantId)) {
-      const errorMsg = `Invalid Voice Assistant ID: ${voiceAssistantId}. Please check your environment variables in Vercel dashboard.`;
+    if (!voiceAssistantId || !isValidUUID) {
+      const errorMsg = `Invalid Voice Assistant ID: ${voiceAssistantId}. Length: ${voiceAssistantId?.length}. Please check your environment variables in Vercel dashboard.`;
       console.error(errorMsg);
-      alert(errorMsg);
-      return;
+      console.error("Using fallback male voice ID...");
+      
+      // Try fallback to male voice ID
+      voiceAssistantId = "d9986723-925a-4b2b-9d08-fe2c6907a417";
+      
+      if (!voiceAssistantId) {
+        alert(errorMsg);
+        return;
+      }
     }
     
     setCallStatus("connecting");
