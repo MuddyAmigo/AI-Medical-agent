@@ -58,7 +58,7 @@ export default function AddNewSessionDialog() {
                 image: doctor.image || '/default-doctor.jpg',
                 voiceId: doctor.voiceId || '', // Provide a default or map from API
                 agentPrompt: doctor.agentPrompt || '', // Provide a default or map from API
-                gender: doctor.gender || 'unknown' // Provide a default or map from API
+                gender: doctor.gender || 'male' // Default to male instead of unknown
             }));
             
             setSuggestedDoctors(mappedDoctors);

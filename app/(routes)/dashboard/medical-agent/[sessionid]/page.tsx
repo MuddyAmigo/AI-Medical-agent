@@ -45,8 +45,10 @@ export default function MedicalVoiceAgent() {
     console.log("🔧 Environment Variables Check:");
     console.log("VAPI_API_KEY exists:", !!process.env.NEXT_PUBLIC_VAPI_API_KEY);
     console.log("VAPI_API_KEY length:", process.env.NEXT_PUBLIC_VAPI_API_KEY?.length || 0);
-    console.log("VAPI_VOICE_ASSISTANT_ID:", process.env.NEXT_PUBLIC_VAPI_VOICE_ASSISTANT_ID);
-    console.log("VAPI_VOICE_ASSISTANT_ID exists:", !!process.env.NEXT_PUBLIC_VAPI_VOICE_ASSISTANT_ID);
+    console.log("VAPI_MALE_VOICE_ID:", process.env.NEXT_PUBLIC_VAPI_MALE_VOICE_ID);
+    console.log("VAPI_FEMALE_VOICE_ID:", process.env.NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID);
+    console.log("Male Voice ID exists:", !!process.env.NEXT_PUBLIC_VAPI_MALE_VOICE_ID);
+    console.log("Female Voice ID exists:", !!process.env.NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID);
   }, []);
 
   // ---------- Fetch Session ----------
@@ -129,7 +131,36 @@ export default function MedicalVoiceAgent() {
   const startCall = () => {
     console.log("🚀 Starting call...");
     console.log("VAPI_API_KEY exists:", !!process.env.NEXT_PUBLIC_VAPI_API_KEY);
-    console.log("VAPI_VOICE_ASSISTANT_ID:", process.env.NEXT_PUBLIC_VAPI_VOICE_ASSISTANT_ID);
+    
+    // Debug session detail and doctor information
+    console.log("📋 Session Detail:", sessionDetail);
+    console.log("👨‍⚕️ Selected Doctor:", sessionDetail?.selectedDoctor);
+    console.log("🎭 Doctor Gender Property:", sessionDetail?.selectedDoctor?.gender);
+    
+    // Determine voice ID based on doctor gender
+    const doctorGender = sessionDetail?.selectedDoctor?.gender?.toLowerCase();
+    const maleVoiceId = process.env.NEXT_PUBLIC_VAPI_MALE_VOICE_ID;
+    const femaleVoiceId = process.env.NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID;
+    
+    console.log("🎵 Available Voice IDs:");
+    console.log("  Male Voice ID:", maleVoiceId);
+    console.log("  Female Voice ID:", femaleVoiceId);
+    
+    const voiceAssistantId = 
+      doctorGender === "female" 
+        ? femaleVoiceId 
+        : maleVoiceId;
+    
+    console.log("🔍 Gender Detection:");
+    console.log("  Raw Gender:", sessionDetail?.selectedDoctor?.gender);
+    console.log("  Lowercase Gender:", doctorGender);
+    console.log("  Is Female?:", doctorGender === "female");
+    console.log("  Selected Voice Assistant ID:", voiceAssistantId);
+    
+    if (!voiceAssistantId) {
+      alert("Voice Assistant ID not found. Please check your environment variables.");
+      return;
+    }
     
     setCallStatus("connecting");
     setMessages([]);
@@ -174,8 +205,8 @@ export default function MedicalVoiceAgent() {
         // console.log("🔊 Volume level:", level);
       });
 
-      console.log("📞 Starting Vapi call with ID:", process.env.NEXT_PUBLIC_VAPI_VOICE_ASSISTANT_ID);
-      vapi.start(process.env.NEXT_PUBLIC_VAPI_VOICE_ASSISTANT_ID);
+      console.log("📞 Starting Vapi call with Voice ID:", voiceAssistantId);
+      vapi.start(voiceAssistantId);
 
     } catch (error) {
       console.error("❌ Error initializing Vapi:", error);

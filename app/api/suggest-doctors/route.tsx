@@ -101,7 +101,10 @@ export async function POST(req: NextRequest) {
                 name: doctor.specialist,
                 specialty: doctor.specialist,
                 description: doctor.description,
-                image: doctor.image
+                image: doctor.image,
+                voiceId: doctor.voiceId,
+                agentPrompt: doctor.agentPrompt,
+                gender: doctor.gender
             }));
             
             return NextResponse.json({ 
@@ -113,25 +116,49 @@ export async function POST(req: NextRequest) {
         
         // Validate and structure the response
         if (JSONResp.doctors && Array.isArray(JSONResp.doctors)) {
-            // Ensure each doctor has required fields
-            const validatedDoctors = JSONResp.doctors.map((doctor: any, index: number) => ({
-                id: doctor.id || index + 1,
-                name: doctor.name || doctor.specialist || 'Unknown Doctor',
-                specialty: doctor.specialty || doctor.specialist || 'General Medicine',
-                description: doctor.description || 'Experienced medical professional',
-                image: doctor.image || '/default-doctor.jpg'
-            }));
+            // Ensure each doctor has required fields by matching with AIDoctorAgents
+            const validatedDoctors = JSONResp.doctors.map((doctor: any, index: number) => {
+                // Find the matching doctor from AIDoctorAgents to get complete data
+                const matchingDoctor = AIDoctorAgents.find(agent => 
+                    agent.id === doctor.id || 
+                    agent.specialist.toLowerCase() === doctor.name?.toLowerCase() ||
+                    agent.specialist.toLowerCase() === doctor.specialty?.toLowerCase()
+                );
+
+                return {
+                    id: doctor.id || index + 1,
+                    name: doctor.name || doctor.specialist || matchingDoctor?.specialist || 'Unknown Doctor',
+                    specialty: doctor.specialty || doctor.specialist || matchingDoctor?.specialist || 'General Medicine',
+                    description: doctor.description || matchingDoctor?.description || 'Experienced medical professional',
+                    image: doctor.image || matchingDoctor?.image || '/default-doctor.jpg',
+                    voiceId: matchingDoctor?.voiceId || '',
+                    agentPrompt: matchingDoctor?.agentPrompt || '',
+                    gender: matchingDoctor?.gender || 'male' // Default to male if not found
+                };
+            });
             
             return NextResponse.json({ doctors: validatedDoctors });
         } else if (Array.isArray(JSONResp)) {
             // Handle case where response is directly an array
-            const validatedDoctors = JSONResp.map((doctor: any, index: number) => ({
-                id: doctor.id || index + 1,
-                name: doctor.name || doctor.specialist || 'Unknown Doctor',
-                specialty: doctor.specialty || doctor.specialist || 'General Medicine',
-                description: doctor.description || 'Experienced medical professional',
-                image: doctor.image || '/default-doctor.jpg'
-            }));
+            const validatedDoctors = JSONResp.map((doctor: any, index: number) => {
+                // Find the matching doctor from AIDoctorAgents to get complete data
+                const matchingDoctor = AIDoctorAgents.find(agent => 
+                    agent.id === doctor.id || 
+                    agent.specialist.toLowerCase() === doctor.name?.toLowerCase() ||
+                    agent.specialist.toLowerCase() === doctor.specialty?.toLowerCase()
+                );
+
+                return {
+                    id: doctor.id || index + 1,
+                    name: doctor.name || doctor.specialist || matchingDoctor?.specialist || 'Unknown Doctor',
+                    specialty: doctor.specialty || doctor.specialist || matchingDoctor?.specialist || 'General Medicine',
+                    description: doctor.description || matchingDoctor?.description || 'Experienced medical professional',
+                    image: doctor.image || matchingDoctor?.image || '/default-doctor.jpg',
+                    voiceId: matchingDoctor?.voiceId || '',
+                    agentPrompt: matchingDoctor?.agentPrompt || '',
+                    gender: matchingDoctor?.gender || 'male' // Default to male if not found
+                };
+            });
             
             return NextResponse.json({ doctors: validatedDoctors });
         } else {
@@ -186,7 +213,10 @@ export async function POST(req: NextRequest) {
             name: doctor.specialist,
             specialty: doctor.specialist,
             description: doctor.description,
-            image: doctor.image
+            image: doctor.image,
+            voiceId: doctor.voiceId,
+            agentPrompt: doctor.agentPrompt,
+            gender: doctor.gender
         }));
         
         return NextResponse.json({ 
