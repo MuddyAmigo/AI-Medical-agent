@@ -24,7 +24,7 @@ export default function AppHeader() {
       <div className="flex w-full items-center justify-between">
         
         {/* Logo */}
-        <Link href="/dashboard">
+        <Link href="/">
           <Image src={'/logo2.png'} alt="logo" width={160} height={80} className="rounded-lg" />
         </Link>
 

@@ -1,4 +1,3 @@
-// ...existing code...
 import { NextResponse, NextRequest } from "next/server";
 import db from "@/config/db";
 import { currentUser } from "@clerk/nextjs/server";
@@ -9,7 +8,7 @@ export async function POST(req: NextRequest) {
   const user = await currentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 200 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const email =
@@ -56,4 +55,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to create or fetch user" }, { status: 500 });
   }
 }
-// ...existing code...
