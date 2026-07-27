@@ -47,7 +47,7 @@ jobs:
             ${{ steps.image-name.outputs.image }}:latest
             ${{ steps.image-name.outputs.image }}:${{ github.sha }}
           build-args: |
-            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || 'pk_test_ci_placeholder' }}
             NEXT_PUBLIC_CLERK_SIGN_IN_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_IN_URL }}
             NEXT_PUBLIC_CLERK_SIGN_UP_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_UP_URL }}
             NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=${{ secrets.NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL }}
