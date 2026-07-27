@@ -16,8 +16,6 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    outputs:
-      image: ${{ steps.image-name.outputs.image }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -67,6 +65,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Recomputed locally rather than read from build-and-push's job output:
+      # GitHub silently drops a job output ("Skip output '...' since it may
+      # contain secret") whenever its value happens to overlap a masked
+      # secret anywhere in the run, which was leaving `--image` empty here.
+      - name: Compute lowercase image name
+        id: image-name
+        run: echo "image=${REGISTRY}/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
       - name: Set up flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
 
@@ -81,7 +87,7 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
           flyctl deploy \
-            --image ${{ needs.build-and-push.outputs.image }}:${{ github.sha }} \
+            --image ${{ steps.image-name.outputs.image }}:${{ github.sha }} \
             --remote-only
 
       - name: Verify deploy health
