@@ -1,0 +1,32 @@
+# dependencies
+node_modules
+npm-debug.log*
+
+# next.js build output
+.next
+out
+
+# git
+.git
+.gitignore
+
+# env files — never send secrets into the build context
+.env
+.env.*
+!.env.example
+
+# vercel / clerk local metadata
+.vercel
+.clerk
+
+# docs
+*.md
+
+# editor / OS
+.DS_Store
+.vscode
+.idea
+
+# misc
+coverage
+*.tsbuildinfo

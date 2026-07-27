@@ -1,4 +1,35 @@
+[![CI](https://github.com/MuddyAmigo/AI-Medical-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/MuddyAmigo/AI-Medical-agent/actions/workflows/ci.yml)
+[![CD](https://github.com/MuddyAmigo/AI-Medical-agent/actions/workflows/cd.yml/badge.svg)](https://github.com/MuddyAmigo/AI-Medical-agent/actions/workflows/cd.yml)
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Architecture
+
+```
+PR opened ──▶ CI (typecheck, next build, docker build)
+                     │  must pass before merge
+                     ▼
+main branch ──▶ CD ──▶ build image ──▶ push to GHCR ──▶ deploy to Fly.io ──▶ verify /api/health
+```
+
+The app builds with `output: 'standalone'` (see `next.config.ts`), so the production Docker image
+(`Dockerfile`) only ships the traced `node_modules` subset, compiled `.next` output, and static
+assets — no full `node_modules`, no source, no dev dependencies. It runs as a non-root user.
+
+- **`NEXT_PUBLIC_*`** vars (Clerk publishable key/redirect URLs, Vapi keys) are Docker **build
+  args** — Next.js inlines them into the client bundle at build time, so they must exist before
+  `next build` runs.
+- **Server secrets** (`CLERK_SECRET_KEY`, `DATABASE_URL`, `OPEN_ROUTER_API_KEY`, `GROQ_API_KEY`)
+  are **runtime-only** — injected via `docker run -e` / Compose `env_file` locally, or `flyctl
+  secrets set` in production. They are never baked into the image.
+- Every PR against `main` runs CI: install, `tsc --noEmit`, `next build`, then a full `docker
+  build` as a final integration check.
+- Every push to `main` runs CD: builds and pushes the image to GHCR (tagged `latest` and the
+  commit SHA), deploys that exact image to Fly.io, then polls `/api/health` and fails the
+  workflow if it doesn't return `200`.
+
+Local development: `docker compose up --build` (see `docker-compose.yml`). No local Postgres
+container is needed — [Neon](https://neon.tech) is a remote, HTTPS-based serverless driver.
 
 ## Getting Started
 

@@ -1,0 +1,27 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Build args come from your local .env via compose's automatic
+        # variable substitution — these get compiled into the client bundle.
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL}
+        NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_URL}
+        NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL}
+        NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL}
+        NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL}
+        NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL}
+        NEXT_PUBLIC_VAPI_API_KEY: ${NEXT_PUBLIC_VAPI_API_KEY}
+        NEXT_PUBLIC_VAPI_MALE_VOICE_ID: ${NEXT_PUBLIC_VAPI_MALE_VOICE_ID}
+        NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID: ${NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID}
+    image: ai-medical-voice-agent:local
+    ports:
+      - "3000:3000"
+    # Runtime-only secrets — never passed as build args, never baked into
+    # the image. No local Postgres service: Neon is a remote HTTPS-based
+    # serverless driver, so DATABASE_URL just points at Neon's endpoint.
+    env_file:
+      - .env
+    restart: unless-stopped

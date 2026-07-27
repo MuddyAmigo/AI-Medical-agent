@@ -1,0 +1,99 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  # Must match `app` in fly.toml — if you rename the Fly app, update both.
+  FLY_APP_URL: https://ai-medical-voice-agent.fly.dev
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.image-name.outputs.image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # GHCR requires a lowercase image path; github.repository preserves
+      # the repo's actual casing, so it can't be used directly in the tag.
+      - name: Compute lowercase image name
+        id: image-name
+        run: echo "image=${REGISTRY}/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.image-name.outputs.image }}:latest
+            ${{ steps.image-name.outputs.image }}:${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+            NEXT_PUBLIC_CLERK_SIGN_IN_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_IN_URL }}
+            NEXT_PUBLIC_CLERK_SIGN_UP_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_UP_URL }}
+            NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=${{ secrets.NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL }}
+            NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=${{ secrets.NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL }}
+            NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL }}
+            NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL }}
+            NEXT_PUBLIC_VAPI_API_KEY=${{ secrets.NEXT_PUBLIC_VAPI_API_KEY }}
+            NEXT_PUBLIC_VAPI_MALE_VOICE_ID=${{ secrets.NEXT_PUBLIC_VAPI_MALE_VOICE_ID }}
+            NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID=${{ secrets.NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      # Deploys the exact image just pushed to GHCR — Fly does not rebuild.
+      # The GHCR package must be public (Package settings -> Change
+      # visibility) or Fly's Machines API can't pull it; runtime secrets
+      # (CLERK_SECRET_KEY, DATABASE_URL, OPEN_ROUTER_API_KEY, GROQ_API_KEY)
+      # are set once via `flyctl secrets set`, not on every deploy, so they
+      # never appear in workflow logs.
+      - name: Deploy to Fly.io
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl deploy \
+            --image ${{ needs.build-and-push.outputs.image }}:${{ github.sha }} \
+            --remote-only
+
+      - name: Verify deploy health
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" "${FLY_APP_URL}/api/health" || echo "000")
+            if [ "$status" = "200" ]; then
+              echo "Health check passed (attempt $attempt): $status"
+              exit 0
+            fi
+            echo "Health check attempt $attempt: got $status, retrying in 10s..."
+            sleep 10
+          done
+          echo "Health check failed after deploy — got $status"
+          exit 1

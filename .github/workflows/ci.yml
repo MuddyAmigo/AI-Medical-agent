@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+# NEXT_PUBLIC_* secrets aren't sensitive in the security sense (they end up
+# in the client bundle anyway) but GitHub Actions still withholds repo
+# secrets from workflows triggered by forked-repo PRs. Those PR runs will
+# build with empty NEXT_PUBLIC_* values — build still succeeds, it just
+# won't reflect real Clerk/Vapi config until it runs on a same-repo branch.
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build Next.js app
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${{ secrets.NEXT_PUBLIC_CLERK_SIGN_IN_URL }}
+          NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${{ secrets.NEXT_PUBLIC_CLERK_SIGN_UP_URL }}
+          NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: ${{ secrets.NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL }}
+          NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: ${{ secrets.NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL }}
+          NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: ${{ secrets.NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL }}
+          NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: ${{ secrets.NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL }}
+          NEXT_PUBLIC_VAPI_API_KEY: ${{ secrets.NEXT_PUBLIC_VAPI_API_KEY }}
+          NEXT_PUBLIC_VAPI_MALE_VOICE_ID: ${{ secrets.NEXT_PUBLIC_VAPI_MALE_VOICE_ID }}
+          NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID: ${{ secrets.NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID }}
+          # config/OpenAiModel.tsx and drizzle.config.ts construct clients /
+          # read env at module scope, so `next build` needs *some* value
+          # here even though these are runtime-only secrets everywhere else
+          # in this pipeline (see Dockerfile). Placeholders only, never real
+          # secrets, since this step never talks to the database or an LLM.
+          DATABASE_URL: "postgresql://placeholder:placeholder@placeholder/placeholder"
+          OPEN_ROUTER_API_KEY: "build-placeholder"
+          GROQ_API_KEY: "build-placeholder"
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npm run build
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker build (verification only, no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          build-args: |
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+            NEXT_PUBLIC_CLERK_SIGN_IN_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_IN_URL }}
+            NEXT_PUBLIC_CLERK_SIGN_UP_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_UP_URL }}
+            NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=${{ secrets.NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL }}
+            NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=${{ secrets.NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL }}
+            NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL }}
+            NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=${{ secrets.NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL }}
+            NEXT_PUBLIC_VAPI_API_KEY=${{ secrets.NEXT_PUBLIC_VAPI_API_KEY }}
+            NEXT_PUBLIC_VAPI_MALE_VOICE_ID=${{ secrets.NEXT_PUBLIC_VAPI_MALE_VOICE_ID }}
+            NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID=${{ secrets.NEXT_PUBLIC_VAPI_FEMALE_VOICE_ID }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
